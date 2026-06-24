@@ -61,22 +61,30 @@ export async function pushSchema() {
     `;
 
     const createCertTable = `
-      CREATE TABLE IF NOT EXISTS \`certificate_requests\` (
-        \`id\` int AUTO_INCREMENT NOT NULL,
-        \`courseName\` varchar(255) NOT NULL,
-        \`fullNameAr\` varchar(255) NOT NULL,
-        \`fullNameEn\` varchar(255) NOT NULL,
-        \`phone\` varchar(50) NOT NULL,
-        \`birthPlace\` varchar(255) NOT NULL,
-        \`birthDate\` varchar(50) NOT NULL,
-        \`gender\` enum('male','female') NOT NULL,
-        \`status\` enum('pending','processing','completed','rejected') NOT NULL DEFAULT 'pending',
-        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        CONSTRAINT \`certificate_requests_id\` PRIMARY KEY(\`id\`)
+      CREATE TABLE IF NOT EXISTS `certificate_requests` (
+        `id` int AUTO_INCREMENT NOT NULL,
+        `courseName` varchar(255) NOT NULL,
+        `fullNameAr` varchar(255) NOT NULL,
+        `fullNameEn` varchar(255) NOT NULL,
+        `phone` varchar(50) NOT NULL,
+        `birthPlace` varchar(255) NOT NULL,
+        `birthDate` varchar(50) NOT NULL,
+        `gender` enum('male','female') NOT NULL,
+        `idCardUrl` varchar(500),
+        `status` enum('pending','processing','completed','rejected') NOT NULL DEFAULT 'pending',
+        `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT `certificate_requests_id` PRIMARY KEY(`id`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `;
 
+    // التحقق من وجود العمود idCardUrl وإضافته إذا لم يكن موجوداً
+    try {
+      await db.execute(`ALTER TABLE certificate_requests ADD COLUMN idCardUrl varchar(500) AFTER gender`);
+    } catch (e) {
+      // العمود قد يكون موجوداً بالفعل، لا نقلق
+    }
+    
     await db.execute(createAdminTable);
     await db.execute(createRegTable);
     await db.execute(createCertTable);

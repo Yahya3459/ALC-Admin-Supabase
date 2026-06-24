@@ -61,6 +61,7 @@ export const certificateRequests = mysqlTable("certificate_requests", {
   birthPlace: varchar("birthPlace", { length: 255 }).notNull(),
   birthDate: varchar("birthDate", { length: 50 }).notNull(),
   gender: mysqlEnum("gender", ["male", "female"]).notNull(),
+  idCardUrl: varchar("idCardUrl", { length: 500 }),
   status: mysqlEnum("status", ["pending", "processing", "completed", "rejected"])
     .default("pending")
     .notNull(),

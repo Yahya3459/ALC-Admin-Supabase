@@ -117,6 +117,7 @@ export const appRouter = router({
           birthPlace: z.string().min(2),
           birthDate: z.string().min(1),
           gender: z.enum(["male", "female"]),
+          idCardUrl: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
