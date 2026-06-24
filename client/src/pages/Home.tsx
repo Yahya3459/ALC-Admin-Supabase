@@ -1,31 +1,20 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { getLoginUrl } from "@/const";
-import { Streamdown } from 'streamdown';
+import { GraduationCap } from "lucide-react";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // The userAuth hooks provides authentication state
-  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
-
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
-
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "linear-gradient(135deg, #0b3f86, #0f5bb7)" }}
+    >
+      <div className="text-center text-white">
+        <div className="flex justify-center mb-4">
+          <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center">
+            <GraduationCap className="w-10 h-10 text-white" />
+          </div>
+        </div>
+        <h1 className="text-3xl font-bold">مركز الأمجاد للغات والتدريب</h1>
+        <p className="mt-2 text-white/70">نظام إدارة الطلبات</p>
+      </div>
     </div>
   );
 }
