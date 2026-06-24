@@ -83,7 +83,8 @@ export async function pushSchema() {
     const columnsToUpdate = [
       { name: "grades", type: "json" },
       { name: "finalGrade", type: "varchar(50)" },
-      { name: "average", type: "varchar(50)" }
+      { name: "average", type: "varchar(50)" },
+      { name: "total", type: "varchar(50)" }
     ];
 
     for (const col of columnsToUpdate) {
@@ -230,7 +231,7 @@ export async function updateCertificateStatus(id: number, status: any) {
   await db.update(certificateRequests).set({ status }).where(eq(certificateRequests.id, id));
 }
 
-export async function updateCertificateGrades(id: number, data: { grades: any, finalGrade: string, average: string }) {
+export async function updateCertificateGrades(id: number, data: { grades: any, finalGrade: string, average: string, total?: string }) {
   const db = await getDb();
   if (!db) return;
   await db.update(certificateRequests)
@@ -238,6 +239,7 @@ export async function updateCertificateGrades(id: number, data: { grades: any, f
       grades: data.grades,
       finalGrade: data.finalGrade,
       average: data.average,
+      total: data.total,
       status: "completed"
     })
     .where(eq(certificateRequests.id, id));

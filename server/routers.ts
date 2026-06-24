@@ -247,6 +247,7 @@ export const appRouter = router({
           grades: z.any(),
           finalGrade: z.string(),
           average: z.string(),
+          total: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -255,6 +256,7 @@ export const appRouter = router({
           grades: input.grades,
           finalGrade: input.finalGrade,
           average: input.average,
+          total: input.total,
         });
         return { success: true };
       }),

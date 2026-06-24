@@ -37,22 +37,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
-  Search,
   Clock,
   CheckCircle,
   XCircle,
   Trash2,
   RefreshCw,
-  Eye,
   Download,
   Zap,
   FileText,
-  FileSpreadsheet,
-  ChevronDown,
   Filter,
   X,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import { Document, Packer, Paragraph, Table as DocTable, TableCell as DocTableCell, TableRow as DocTableRow, WidthType, BorderStyle, AlignmentType } from "docx";
 import { saveAs } from "file-saver";
 
@@ -113,6 +108,7 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
   const config = COURSE_CONFIGS[cert.courseName] || { subjects: [] };
   const [grades, setGrades] = useState<Record<string, any>>(cert.grades || {});
   const [average, setAverage] = useState(cert.average || "");
+  const [total, setTotal] = useState(cert.total || "");
   const [finalGrade, setFinalGrade] = useState(cert.finalGrade || "");
 
   const handleGradeChange = (subject: string, field: string, value: string) => {
@@ -133,7 +129,7 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
     let count = 0;
 
     subjects.forEach(sub => {
-      const val = currentGrades[sub]?.result || currentGrades[sub];
+      const val = currentGrades[sub]?.result || (typeof currentGrades[sub] === 'string' ? currentGrades[sub] : "");
       const score = parseFloat(val);
       if (!isNaN(score)) {
         totalScore += score;
@@ -143,8 +139,8 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
 
     if (count > 0) {
       const avg = totalScore / count;
-      const avgFormatted = avg.toFixed(2);
-      setAverage(avgFormatted + "%");
+      setTotal(totalScore.toString());
+      setAverage(avg.toFixed(2) + "%");
       setFinalGrade(calculateGrade(avg));
     }
   };
@@ -158,6 +154,11 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4">
+            <div className="grid grid-cols-12 gap-2 items-center font-bold border-b pb-2">
+              <div className="col-span-4">المادة</div>
+              <div className="col-span-4">الدرجة</div>
+              <div className="col-span-4">التقدير</div>
+            </div>
             {config.subjects.map(sub => (
               <div key={sub} className="grid grid-cols-12 gap-2 items-center border-b pb-2">
                 <div className="col-span-4 font-medium">{sub}</div>
@@ -176,9 +177,13 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t">
             <div>
-              <label className="text-sm font-bold">المعدل / المجموع</label>
+              <label className="text-sm font-bold">المجموع</label>
+              <Input value={total} readOnly className="bg-blue-50 font-semibold" />
+            </div>
+            <div>
+              <label className="text-sm font-bold">المعدل</label>
               <Input value={average} readOnly className="bg-blue-50 font-semibold" />
             </div>
             <div>
@@ -189,7 +194,7 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
 
           <div className="flex justify-end gap-2 mt-6">
             <Button variant="outline" onClick={onClose}>إلغاء</Button>
-            <Button onClick={() => onSave({ grades, average, finalGrade })}>حفظ وإكمال</Button>
+            <Button onClick={() => onSave({ grades, average, finalGrade, total })}>حفظ وإكمال</Button>
           </div>
         </CardContent>
       </Card>
@@ -202,15 +207,17 @@ const exportFunctions = {
   exportToTxt: (cert: any, courseConfigs: typeof COURSE_CONFIGS) => {
     const config = courseConfigs[cert.courseName];
     const lines: string[] = [];
-    lines.push(`Name,Course,Average,Grade,${config?.subjects.join(",") || ""}`);
+    lines.push(`Name,Course,Total,Average,Grade,${config?.subjects.join(",") || ""}`);
     const gradeValues: string[] = [];
     if (config) {
       config.subjects.forEach(sub => {
         const val = cert.grades?.[sub];
-        gradeValues.push(typeof val === 'object' ? (val.result || "") : (val || ""));
+        const result = typeof val === 'object' ? (val.result || "") : (val || "");
+        const grade = typeof val === 'object' ? (val.grade || "") : "";
+        gradeValues.push(`${result}${grade ? ` (${grade})` : ""}`);
       });
     }
-    lines.push(`${cert.fullNameEn},${cert.courseName},${cert.average},${cert.finalGrade},${gradeValues.join(",")}`);
+    lines.push(`${cert.fullNameEn},${cert.courseName},${cert.total || ""},${cert.average},${cert.finalGrade},${gradeValues.join(",")}`);
     const content = lines.join("\n");
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     saveAs(blob, `${cert.fullNameEn}_${cert.courseName}.txt`);
@@ -222,6 +229,7 @@ const exportFunctions = {
     const headerCells = [
       new DocTableCell({ children: [new Paragraph("Name")] }),
       new DocTableCell({ children: [new Paragraph("Course")] }),
+      new DocTableCell({ children: [new Paragraph("Total")] }),
       new DocTableCell({ children: [new Paragraph("Average")] }),
       new DocTableCell({ children: [new Paragraph("Grade")] }),
     ];
@@ -230,13 +238,16 @@ const exportFunctions = {
     const dataCells = [
       new DocTableCell({ children: [new Paragraph(cert.fullNameEn)] }),
       new DocTableCell({ children: [new Paragraph(cert.courseName)] }),
+      new DocTableCell({ children: [new Paragraph(cert.total || "")] }),
       new DocTableCell({ children: [new Paragraph(cert.average || "")] }),
       new DocTableCell({ children: [new Paragraph(cert.finalGrade || "")] }),
     ];
     if (config) {
       config.subjects.forEach(sub => {
         const val = cert.grades?.[sub];
-        const displayVal = typeof val === 'object' ? (val.result || "") : (val || "");
+        const result = typeof val === 'object' ? (val.result || "") : (val || "");
+        const grade = typeof val === 'object' ? (val.grade || "") : "";
+        const displayVal = `${result}${grade ? ` (${grade})` : ""}`;
         dataCells.push(new DocTableCell({ children: [new Paragraph(displayVal)] }));
       });
     }
@@ -263,88 +274,6 @@ const exportFunctions = {
     });
     const blob = await Packer.toBlob(doc);
     saveAs(blob, `${cert.fullNameEn}_${cert.courseName}.docx`);
-  },
-
-  exportMultipleToTxt: (certs: any[], courseConfigs: typeof COURSE_CONFIGS) => {
-    const lines: string[] = [];
-    const allSubjects = new Set<string>();
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      if (config) { config.subjects.forEach(sub => allSubjects.add(sub)); }
-    });
-    const subjectsArray = Array.from(allSubjects);
-    lines.push(`Name,Course,Average,Grade,${subjectsArray.join(",")}`);
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      const gradeValues: string[] = [];
-      subjectsArray.forEach(sub => {
-        if (config?.subjects.includes(sub)) {
-          const val = cert.grades?.[sub];
-          gradeValues.push(typeof val === 'object' ? (val.result || "") : (val || ""));
-        } else { gradeValues.push(""); }
-      });
-      lines.push(`${cert.fullNameEn},${cert.courseName},${cert.average || ""},${cert.finalGrade || ""},${gradeValues.join(",")}`);
-    });
-    const content = lines.join("\n");
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    saveAs(blob, `Certificates_${new Date().toISOString().split('T')[0]}.txt`);
-  },
-
-  exportMultipleToWord: async (certs: any[], courseConfigs: typeof COURSE_CONFIGS) => {
-    const allSubjects = new Set<string>();
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      if (config) { config.subjects.forEach(sub => allSubjects.add(sub)); }
-    });
-    const subjectsArray = Array.from(allSubjects);
-    const tableRows: DocTableRow[] = [];
-    const headerCells = [
-      new DocTableCell({ children: [new Paragraph("Name")] }),
-      new DocTableCell({ children: [new Paragraph("Course")] }),
-      new DocTableCell({ children: [new Paragraph("Average")] }),
-      new DocTableCell({ children: [new Paragraph("Grade")] }),
-    ];
-    subjectsArray.forEach(sub => { headerCells.push(new DocTableCell({ children: [new Paragraph(sub)] })); });
-    tableRows.push(new DocTableRow({ children: headerCells }));
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      const dataCells = [
-        new DocTableCell({ children: [new Paragraph(cert.fullNameEn)] }),
-        new DocTableCell({ children: [new Paragraph(cert.courseName)] }),
-        new DocTableCell({ children: [new Paragraph(cert.average || "")] }),
-        new DocTableCell({ children: [new Paragraph(cert.finalGrade || "")] }),
-      ];
-      subjectsArray.forEach(sub => {
-        if (config?.subjects.includes(sub)) {
-          const val = cert.grades?.[sub];
-          const displayVal = typeof val === 'object' ? (val.result || "") : (val || "");
-          dataCells.push(new DocTableCell({ children: [new Paragraph(displayVal)] }));
-        } else { dataCells.push(new DocTableCell({ children: [new Paragraph("")] })); }
-      });
-      tableRows.push(new DocTableRow({ children: dataCells }));
-    });
-    const doc = new Document({
-      sections: [{
-        children: [
-          new Paragraph({ text: "Certificates Summary Report", bold: true, size: 28, alignment: AlignmentType.CENTER }),
-          new Paragraph(""),
-          new DocTable({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: tableRows,
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-            },
-          }),
-        ],
-      }],
-    });
-    const blob = await Packer.toBlob(doc);
-    saveAs(blob, `Certificates_${new Date().toISOString().split('T')[0]}.docx`);
   }
 };
 
@@ -356,139 +285,146 @@ export default function CertificatesDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [gradesCert, setGradesCert] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [gradesCert, setGradesCert] = useState<any>(null);
 
   const utils = trpc.useUtils();
-  const { data: certs, isLoading, refetch } = trpc.admin.getCertificateRequests.useQuery(undefined);
-
+  const { data: certs, isLoading, refetch } = trpc.admin.getCertificateRequests.useQuery();
+  
   const updateStatus = trpc.admin.updateCertificateStatus.useMutation({
-    onSuccess: () => { utils.admin.getCertificateRequests.invalidate(); toast.success("تم تحديث الحالة"); },
+    onSuccess: () => {
+      toast.success("تم تحديث الحالة بنجاح");
+      utils.admin.getCertificateRequests.invalidate();
+    }
   });
 
   const updateGrades = trpc.admin.updateCertificateGrades.useMutation({
-    onSuccess: () => { 
-      utils.admin.getCertificateRequests.invalidate(); 
-      setGradesCert(null); 
-      toast.success("تم حفظ الدرجات وتحديث الحالة"); 
-    },
+    onSuccess: () => {
+      toast.success("تم حفظ الدرجات بنجاح");
+      setGradesCert(null);
+      utils.admin.getCertificateRequests.invalidate();
+    }
   });
 
   const deleteCert = trpc.admin.deleteCertificateRequest.useMutation({
-    onSuccess: () => { utils.admin.getCertificateRequests.invalidate(); setDeleteId(null); toast.success("تم حذف الطلب"); },
+    onSuccess: () => {
+      toast.success("تم حذف الطلب بنجاح");
+      setDeleteId(null);
+      utils.admin.getCertificateRequests.invalidate();
+    }
   });
 
   const filteredCerts = (certs || []).filter(cert => {
-    const matchesSearch = cert.fullNameAr.includes(search) || cert.fullNameEn.includes(search) || cert.phone.includes(search);
+    const matchesSearch = 
+      cert.fullNameAr.includes(search) || 
+      cert.fullNameEn.toLowerCase().includes(search.toLowerCase()) ||
+      cert.phone.includes(search);
+    
     const matchesStatus = statusFilter === "all" || cert.status === statusFilter;
     const matchesCourse = courseFilter === "all" || cert.courseName === courseFilter;
     const matchesGender = genderFilter === "all" || cert.gender === genderFilter;
-    const certDate = new Date(cert.createdAt).toISOString().split('T')[0];
-    const matchesDateFrom = !dateFrom || certDate >= dateFrom;
-    const matchesDateTo = !dateTo || certDate <= dateTo;
-    return matchesSearch && matchesStatus && matchesCourse && matchesGender && matchesDateFrom && matchesDateTo;
+    
+    let matchesDate = true;
+    if (dateFrom || dateTo) {
+      const createdAt = new Date(cert.createdAt);
+      if (dateFrom && createdAt < new Date(dateFrom)) matchesDate = false;
+      if (dateTo && createdAt > new Date(dateTo)) matchesDate = false;
+    }
+
+    return matchesSearch && matchesStatus && matchesCourse && matchesGender && matchesDate;
   });
 
-  const exportToExcel = () => {
-    const data = filteredCerts.map(c => ({
-      "الاسم عربي": c.fullNameAr,
-      "الاسم إنجليزي": c.fullNameEn,
-      "الدورة": c.courseName,
-      "الجنس": c.gender === "male" ? "ذكر" : "أنثى",
-      "المعدل": c.average || "",
-      "التقدير": c.finalGrade || "",
-      "التاريخ": new Date(c.createdAt).toLocaleDateString("ar-SA")
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "الشهادات");
-    XLSX.writeFile(wb, `Certificates_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const clearFilters = () => {
-    setSearch(""); setStatusFilter("all"); setCourseFilter("all"); setGenderFilter("all"); setDateFrom(""); setDateTo("");
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <Card className="border-0 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">إدارة طلبات الشهادات</h1>
+          <p className="text-muted-foreground">متابعة وإدارة طلبات استخراج الشهادات للطلاب</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-2" /> تحديث</Button>
+        </div>
+      </div>
+
+      <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-            <CardTitle className="text-lg">إدارة طلبات الشهادات</CardTitle>
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5"><RefreshCw className="w-4 h-4" /> تحديث</Button>
-              <Button size="sm" onClick={exportToExcel} className="gap-1.5 bg-green-600 text-white"><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
-              {filteredCerts.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" className="gap-1.5 bg-blue-600 text-white">
-                      <Download className="w-4 h-4" /> تنزيل مخصص
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => exportFunctions.exportMultipleToTxt(filteredCerts, COURSE_CONFIGS)}>
-                      تنزيل كـ Text ({filteredCerts.length})
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => exportFunctions.exportMultipleToWord(filteredCerts, COURSE_CONFIGS)}>
-                      تنزيل كـ Word ({filteredCerts.length})
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="relative flex-1">
+              <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input 
+                placeholder="بحث بالاسم أو رقم الهاتف..." 
+                className="pr-10"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px]"><SelectValue placeholder="الحالة" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل الحالات</SelectItem>
+                  <SelectItem value="pending">قيد الانتظار</SelectItem>
+                  <SelectItem value="processing">قيد المعالجة</SelectItem>
+                  <SelectItem value="completed">مكتمل</SelectItem>
+                  <SelectItem value="rejected">مرفوض</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? "text-primary bg-primary/10" : ""}
+              >
+                {showAdvancedFilters ? <X className="w-4 h-4" /> : <Filter className="w-4 h-4" />}
+                <span className="mr-2">تصفية متقدمة</span>
+              </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="بحث..." value={search} onChange={(e) => setSearch(e.target.value)} className="pr-9 h-9" />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="الحالة" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">جميع الحالات</SelectItem>
-                <SelectItem value="pending">قيد الانتظار</SelectItem>
-                <SelectItem value="completed">مكتمل</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={courseFilter} onValueChange={setCourseFilter}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="الدورة" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">جميع الدورات</SelectItem>
-                {Object.keys(COURSE_CONFIGS).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button variant={showAdvancedFilters ? "default" : "outline"} size="sm" onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className="gap-1.5">
-              <Filter className="w-4 h-4" /> فلاتر متقدمة
-            </Button>
-          </div>
-
-          {(showAdvancedFilters || (typeof window !== 'undefined' && window.innerWidth < 640)) && (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 ${!showAdvancedFilters ? 'sm:hidden md:hidden' : ''}`}>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">الجنس</label>
-                <Select value={genderFilter} onValueChange={setGenderFilter}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="الجنس" /></SelectTrigger>
-                  <SelectContent><SelectItem value="all">الكل</SelectItem><SelectItem value="male">ذكور</SelectItem><SelectItem value="female">إناث</SelectItem></SelectContent>
+          {showAdvancedFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 p-4 bg-gray-50 rounded-lg border border-dashed">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">الدورة التدريبية</label>
+                <Select value={courseFilter} onValueChange={setCourseFilter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع الدورات</SelectItem>
+                    {Object.keys(COURSE_CONFIGS).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">من التاريخ</label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9" />
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">الجنس</label>
+                <Select value={genderFilter} onValueChange={setGenderFilter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">الكل</SelectItem>
+                    <SelectItem value="male">ذكر</SelectItem>
+                    <SelectItem value="female">أنثى</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">إلى التاريخ</label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9" />
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">من تاريخ</label>
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
-              <div className="flex items-end">
-                <Button variant="outline" size="sm" onClick={clearFilters} className="gap-1.5 w-full"><X className="w-4 h-4" /> مسح الفلاتر</Button>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">إلى تاريخ</label>
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
             </div>
           )}
         </CardHeader>
-
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
+        <CardContent>
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -496,8 +432,8 @@ export default function CertificatesDashboard() {
                   <TableHead className="text-right">الدورة</TableHead>
                   <TableHead className="text-right">الجنس</TableHead>
                   <TableHead className="text-right">الحالة</TableHead>
-                  <TableHead className="text-right">النتيجة</TableHead>
-                  <TableHead className="text-right">إجراءات</TableHead>
+                  <TableHead className="text-right">النتيجة (المجموع / المعدل)</TableHead>
+                  <TableHead className="text-right">الإجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -508,7 +444,14 @@ export default function CertificatesDashboard() {
                       <TableCell>{cert.courseName}</TableCell>
                       <TableCell>{cert.gender === "male" ? "ذكر" : "أنثى"}</TableCell>
                       <TableCell><CertStatusBadge status={cert.status as CertStatusKey} /></TableCell>
-                      <TableCell>{cert.average ? `${cert.average} (${cert.finalGrade})` : "—"}</TableCell>
+                      <TableCell>
+                        {cert.average ? (
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{cert.total || "—"} / {cert.average}</span>
+                            <span className="text-xs text-muted-foreground">({cert.finalGrade})</span>
+                          </div>
+                        ) : "—"}
+                      </TableCell>
                       <TableCell className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setGradesCert(cert)} title="إدخال الدرجات"><FileText className="w-4 h-4 text-blue-600" /></Button>
                         {cert.average && (

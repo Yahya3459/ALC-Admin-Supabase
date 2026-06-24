@@ -68,6 +68,7 @@ export const certificateRequests = mysqlTable("certificate_requests", {
   // حقل التقدير النهائي والمعدل
   finalGrade: varchar("finalGrade", { length: 50 }),
   average: varchar("average", { length: 50 }),
+  total: varchar("total", { length: 50 }),
   status: mysqlEnum("status", ["pending", "processing", "completed", "rejected"])
     .default("pending")
     .notNull(),
