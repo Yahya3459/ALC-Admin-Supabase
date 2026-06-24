@@ -16,6 +16,7 @@ import {
   getAdminByUsername,
   createAdminUser,
   adminUserExists,
+  pushSchema,
 } from "./db";
 import { sendRegistrationNotification } from "./email";
 
@@ -187,6 +188,10 @@ export const appRouter = router({
 // ─── Bootstrap: إنشاء المدير الافتراضي عند أول تشغيل ─────────────────────────
 async function bootstrapAdmin() {
   try {
+    // أولاً: التأكد من وجود الجداول
+    await pushSchema();
+    
+    // ثانياً: زرع بيانات المدير
     const hash = await bcrypt.hash("ALC@Admin2026#Secure", 12);
     const existingAdmin = await getAdminByUsername("yahya1019");
     

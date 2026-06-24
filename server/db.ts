@@ -9,7 +9,6 @@ let _db: any = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // استخدام createPool مع خيارات صريحة لضمان التوافق
       const pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         connectionLimit: 10,
@@ -17,16 +16,56 @@ export async function getDb() {
         keepAliveInitialDelay: 0,
       });
       
-      // فرض نمط MySQL بشكل صريح جداً في Drizzle
-      _db = drizzle(pool, { logger: true });
-      
+      _db = drizzle(pool);
       console.log("[Database] Initialized with MySQL pool");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+// وظيفة لإنشاء الجداول تلقائياً في حال عدم وجودها
+export async function pushSchema() {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    console.log("[Database] Pushing schema...");
+    // ملاحظة: في بيئة الإنتاج يفضل استخدام migrations، ولكن للسرعة سنقوم بإنشاء الجداول يدوياً إذا فشل الاستعلام
+    const createAdminTable = `
+      CREATE TABLE IF NOT EXISTS \`admin_users\` (
+        \`id\` int AUTO_INCREMENT NOT NULL,
+        \`username\` varchar(64) NOT NULL,
+        \`passwordHash\` varchar(255) NOT NULL,
+        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT \`admin_users_id\` PRIMARY KEY(\`id\`),
+        CONSTRAINT \`admin_users_username_unique\` UNIQUE(\`username\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+    
+    const createRegTable = `
+      CREATE TABLE IF NOT EXISTS \`registrations\` (
+        \`id\` int AUTO_INCREMENT NOT NULL,
+        \`offerIndex\` int NOT NULL,
+        \`fullName\` varchar(255) NOT NULL,
+        \`phone\` varchar(50) NOT NULL,
+        \`email\` varchar(320),
+        \`notes\` text,
+        \`status\` enum('pending','contacted','enrolled','rejected') NOT NULL DEFAULT 'pending',
+        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT \`registrations_id\` PRIMARY KEY(\`id\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+
+    await db.execute(createAdminTable);
+    await db.execute(createRegTable);
+    console.log("[Database] Schema push completed");
+  } catch (error) {
+    console.error("[Database] Schema push failed:", error);
+  }
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
