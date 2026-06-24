@@ -17,6 +17,10 @@ import {
   createAdminUser,
   adminUserExists,
   pushSchema,
+  createCertificateRequest,
+  getCertificateRequests,
+  updateCertificateStatus,
+  deleteCertificateRequest,
 } from "./db";
 import { sendRegistrationNotification } from "./email";
 
@@ -101,6 +105,34 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Public: طلب شهادة ───────────────────────────────────────────────────
+  certificate: router({
+    submit: publicProcedure
+      .input(
+        z.object({
+          courseName: z.string().min(1),
+          fullNameAr: z.string().min(2),
+          fullNameEn: z.string().min(2),
+          phone: z.string().min(7),
+          birthPlace: z.string().min(2),
+          birthDate: z.string().min(1),
+          gender: z.enum(["male", "female"]),
+        })
+      )
+      .mutation(async ({ input }) => {
+        try {
+          await createCertificateRequest(input);
+          return { success: true };
+        } catch (error) {
+          console.error("[Cert] Submit failed:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "فشل إرسال طلب الشهادة، يرجى المحاولة لاحقاً",
+          });
+        }
+      }),
+  }),
+
   // ─── Admin: المصادقة ─────────────────────────────────────────────────────
   admin: router({
     // التحقق من حالة الجلسة
@@ -182,6 +214,30 @@ export const appRouter = router({
       const rows = await getAllRegistrationsForExport();
       return rows;
     }),
+
+    // ─── إدارة طلبات الشهادات ──────────────────────────────────────────────────
+    getCertificateRequests: adminProcedure.query(async () => {
+      return await getCertificateRequests();
+    }),
+
+    updateCertificateStatus: adminProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          status: z.enum(["pending", "processing", "completed", "rejected"]),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateCertificateStatus(input.id, input.status);
+        return { success: true };
+      }),
+
+    deleteCertificateRequest: adminProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        await deleteCertificateRequest(input.id);
+        return { success: true };
+      }),
   }),
 });
 

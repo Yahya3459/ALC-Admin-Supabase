@@ -50,3 +50,23 @@ export const registrations = mysqlTable("registrations", {
 
 export type Registration = typeof registrations.$inferSelect;
 export type InsertRegistration = typeof registrations.$inferInsert;
+
+// جدول طلبات الشهادات
+export const certificateRequests = mysqlTable("certificate_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  courseName: varchar("courseName", { length: 255 }).notNull(),
+  fullNameAr: varchar("fullNameAr", { length: 255 }).notNull(),
+  fullNameEn: varchar("fullNameEn", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 50 }).notNull(),
+  birthPlace: varchar("birthPlace", { length: 255 }).notNull(),
+  birthDate: varchar("birthDate", { length: 50 }).notNull(),
+  gender: mysqlEnum("gender", ["male", "female"]).notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "rejected"])
+    .default("pending")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CertificateRequest = typeof certificateRequests.$inferSelect;
+export type InsertCertificateRequest = typeof certificateRequests.$inferInsert;

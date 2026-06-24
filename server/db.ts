@@ -1,7 +1,7 @@
 import { eq, desc, like, or, and, SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, registrations, adminUsers, InsertRegistration, Registration } from "../drizzle/schema";
+import { InsertUser, users, registrations, adminUsers, InsertRegistration, Registration, certificateRequests, InsertCertificateRequest, CertificateRequest } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: any = null;
@@ -60,8 +60,26 @@ export async function pushSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `;
 
+    const createCertTable = `
+      CREATE TABLE IF NOT EXISTS \`certificate_requests\` (
+        \`id\` int AUTO_INCREMENT NOT NULL,
+        \`courseName\` varchar(255) NOT NULL,
+        \`fullNameAr\` varchar(255) NOT NULL,
+        \`fullNameEn\` varchar(255) NOT NULL,
+        \`phone\` varchar(50) NOT NULL,
+        \`birthPlace\` varchar(255) NOT NULL,
+        \`birthDate\` varchar(50) NOT NULL,
+        \`gender\` enum('male','female') NOT NULL,
+        \`status\` enum('pending','processing','completed','rejected') NOT NULL DEFAULT 'pending',
+        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT \`certificate_requests_id\` PRIMARY KEY(\`id\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+
     await db.execute(createAdminTable);
     await db.execute(createRegTable);
+    await db.execute(createCertTable);
     console.log("[Database] Schema push completed");
   } catch (error) {
     console.error("[Database] Schema push failed:", error);
@@ -210,4 +228,38 @@ export async function getRegistrationStats() {
     else if (r.status === "rejected") stats.rejected++;
   }
   return stats;
+}
+
+// ─── Certificate Requests ──────────────────────────────────────────────────────
+
+export async function createCertificateRequest(
+  data: InsertCertificateRequest
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(certificateRequests).values(data);
+}
+
+export async function getCertificateRequests(): Promise<CertificateRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(certificateRequests).orderBy(desc(certificateRequests.createdAt));
+}
+
+export async function updateCertificateStatus(
+  id: number,
+  status: CertificateRequest["status"]
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(certificateRequests)
+    .set({ status })
+    .where(eq(certificateRequests.id, id));
+}
+
+export async function deleteCertificateRequest(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(certificateRequests).where(eq(certificateRequests.id, id));
 }
