@@ -23,7 +23,7 @@ import { sendRegistrationNotification } from "./email";
 // ─── Admin JWT ────────────────────────────────────────────────────────────────
 const ADMIN_COOKIE = "alc_admin_token";
 const JWT_SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? ""
+  process.env.JWT_SECRET || "ALC_ADMIN_FALLBACK_SECRET_KEY_2026_DO_NOT_USE_IN_PROD_WITHOUT_ENV"
 );
 
 async function signAdminToken(username: string): Promise<string> {
