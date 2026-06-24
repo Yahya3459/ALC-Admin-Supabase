@@ -344,16 +344,6 @@ export default function CertificatesDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">إدارة طلبات الشهادات</h1>
-          <p className="text-muted-foreground">متابعة وإدارة طلبات استخراج الشهادات للطلاب</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-2" /> تحديث</Button>
-        </div>
-      </div>
-
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -454,15 +444,17 @@ export default function CertificatesDashboard() {
                       </TableCell>
                       <TableCell className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setGradesCert(cert)} title="إدخال الدرجات"><FileText className="w-4 h-4 text-blue-600" /></Button>
-                        {cert.average && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" title="تنزيل الشهادة"><Download className="w-4 h-4 text-green-600" /></Button></DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => exportFunctions.exportToTxt(cert, COURSE_CONFIGS)}>تنزيل كـ Text</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => exportFunctions.exportToWord(cert, COURSE_CONFIGS)}>تنزيل كـ Word</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" title="تنزيل الشهادة">
+                              <Download className="w-4 h-4 text-green-600" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => exportFunctions.exportToTxt(cert, COURSE_CONFIGS)}>تنزيل كـ Text</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportFunctions.exportToWord(cert, COURSE_CONFIGS)}>تنزيل كـ Word</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Button variant="ghost" size="icon" onClick={() => setDeleteId(cert.id)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
                       </TableCell>
                     </TableRow>
