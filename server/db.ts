@@ -33,8 +33,9 @@ export async function pushSchema() {
   
   try {
     console.log("[Database] Pushing schema...");
-    // ملاحظة: في بيئة الإنتاج يفضل استخدام migrations، ولكن للسرعة سنقوم بإنشاء الجداول يدوياً إذا فشل الاستعلام
-    const createAdminTable = `
+    
+    // إنشاء الجداول الأساسية إذا لم تكن موجودة
+    await db.execute(`
       CREATE TABLE IF NOT EXISTS \`admin_users\` (
         \`id\` int AUTO_INCREMENT NOT NULL,
         \`username\` varchar(64) NOT NULL,
@@ -43,9 +44,9 @@ export async function pushSchema() {
         CONSTRAINT \`admin_users_id\` PRIMARY KEY(\`id\`),
         CONSTRAINT \`admin_users_username_unique\` UNIQUE(\`username\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
+    `);
     
-    const createRegTable = `
+    await db.execute(`
       CREATE TABLE IF NOT EXISTS \`registrations\` (
         \`id\` int AUTO_INCREMENT NOT NULL,
         \`offerIndex\` int NOT NULL,
@@ -58,9 +59,9 @@ export async function pushSchema() {
         \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         CONSTRAINT \`registrations_id\` PRIMARY KEY(\`id\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
+    `);
 
-    const createCertTable = `
+    await db.execute(`
       CREATE TABLE IF NOT EXISTS \`certificate_requests\` (
         \`id\` int AUTO_INCREMENT NOT NULL,
         \`courseName\` varchar(255) NOT NULL,
@@ -76,18 +77,23 @@ export async function pushSchema() {
         \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         CONSTRAINT \`certificate_requests_id\` PRIMARY KEY(\`id\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
+    `);
 
-    // التحقق من وجود العمود idCardUrl وإضافته إذا لم يكن موجوداً
-    try {
-      await db.execute(`ALTER TABLE certificate_requests ADD COLUMN idCardUrl varchar(500) AFTER gender`);
-    } catch (e) {
-      // العمود قد يكون موجوداً بالفعل، لا نقلق
+    // تحديث الأعمدة الجديدة في جدول الشهادات
+    const columnsToUpdate = [
+      { name: "grades", type: "json" },
+      { name: "finalGrade", type: "varchar(50)" },
+      { name: "average", type: "varchar(50)" }
+    ];
+
+    for (const col of columnsToUpdate) {
+      try {
+        await db.execute(`ALTER TABLE certificate_requests ADD COLUMN ${col.name} ${col.type}`);
+      } catch (e) {
+        // العمود موجود بالفعل
+      }
     }
     
-    await db.execute(createAdminTable);
-    await db.execute(createRegTable);
-    await db.execute(createCertTable);
     console.log("[Database] Schema push completed");
   } catch (error) {
     console.error("[Database] Schema push failed:", error);
@@ -99,35 +105,24 @@ export async function pushSchema() {
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
-  if (!db) { console.warn("[Database] Cannot upsert user: database not available"); return; }
+  if (!db) return;
 
   try {
     const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
     const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-    const assignNullable = (field: TextField) => {
+    textFields.forEach(field => {
       const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-    textFields.forEach(assignNullable);
+      if (value !== undefined) {
+        values[field] = value ?? null;
+        updateSet[field] = value ?? null;
+      }
+    });
     if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
     if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
-    else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
-    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
     await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
   } catch (error) { console.error("[Database] Failed to upsert user:", error); throw error; }
-}
-
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
 }
 
 // ─── Admin Users ──────────────────────────────────────────────────────────────
@@ -145,13 +140,6 @@ export async function createAdminUser(username: string, passwordHash: string) {
   await db.insert(adminUsers).values({ username, passwordHash });
 }
 
-export async function adminUserExists(): Promise<boolean> {
-  const db = await getDb();
-  if (!db) return false;
-  const result = await db.select({ id: adminUsers.id }).from(adminUsers).limit(1);
-  return result.length > 0;
-}
-
 // ─── Registrations ────────────────────────────────────────────────────────────
 
 export async function createRegistration(data: InsertRegistration): Promise<number> {
@@ -166,35 +154,22 @@ export async function getRegistrations(opts: {
   status?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ rows: Registration[]; total: number }> {
+}) {
   const db = await getDb();
   if (!db) return { rows: [], total: 0 };
 
   const conditions: SQL[] = [];
-
   if (opts.search && opts.search.trim() !== "") {
     const s = `%${opts.search.trim()}%`;
-    conditions.push(
-      or(
-        like(registrations.fullName, s),
-        like(registrations.phone, s),
-        like(registrations.email, s)
-      ) as SQL
-    );
+    conditions.push(or(like(registrations.fullName, s), like(registrations.phone, s), like(registrations.email, s)) as SQL);
   }
-
   if (opts.status && opts.status !== "all") {
-    conditions.push(eq(registrations.status, opts.status as Registration["status"]));
+    conditions.push(eq(registrations.status, opts.status as any));
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const allRows = await db
-    .select()
-    .from(registrations)
-    .where(whereClause)
-    .orderBy(desc(registrations.createdAt));
-
+  const allRows = await db.select().from(registrations).where(whereClause).orderBy(desc(registrations.createdAt));
+  
   const total = allRows.length;
   const limit = opts.limit ?? 50;
   const offset = opts.offset ?? 0;
@@ -203,22 +178,19 @@ export async function getRegistrations(opts: {
   return { rows, total };
 }
 
-export async function getAllRegistrationsForExport(): Promise<Registration[]> {
+export async function getAllRegistrationsForExport() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(registrations).orderBy(desc(registrations.createdAt));
 }
 
-export async function updateRegistrationStatus(
-  id: number,
-  status: Registration["status"]
-): Promise<void> {
+export async function updateRegistrationStatus(id: number, status: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(registrations).set({ status }).where(eq(registrations.id, id));
 }
 
-export async function deleteRegistration(id: number): Promise<void> {
+export async function deleteRegistration(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(registrations).where(eq(registrations.id, id));
@@ -240,33 +212,38 @@ export async function getRegistrationStats() {
 
 // ─── Certificate Requests ──────────────────────────────────────────────────────
 
-export async function createCertificateRequest(
-  data: InsertCertificateRequest
-): Promise<void> {
+export async function createCertificateRequest(data: InsertCertificateRequest) {
   const db = await getDb();
   if (!db) return;
   await db.insert(certificateRequests).values(data);
 }
 
-export async function getCertificateRequests(): Promise<CertificateRequest[]> {
+export async function getCertificateRequests() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(certificateRequests).orderBy(desc(certificateRequests.createdAt));
 }
 
-export async function updateCertificateStatus(
-  id: number,
-  status: CertificateRequest["status"]
-): Promise<void> {
+export async function updateCertificateStatus(id: number, status: any) {
   const db = await getDb();
   if (!db) return;
-  await db
-    .update(certificateRequests)
-    .set({ status })
+  await db.update(certificateRequests).set({ status }).where(eq(certificateRequests.id, id));
+}
+
+export async function updateCertificateGrades(id: number, data: { grades: any, finalGrade: string, average: string }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(certificateRequests)
+    .set({ 
+      grades: data.grades,
+      finalGrade: data.finalGrade,
+      average: data.average,
+      status: "completed"
+    })
     .where(eq(certificateRequests.id, id));
 }
 
-export async function deleteCertificateRequest(id: number): Promise<void> {
+export async function deleteCertificateRequest(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(certificateRequests).where(eq(certificateRequests.id, id));

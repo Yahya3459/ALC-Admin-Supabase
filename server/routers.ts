@@ -239,6 +239,25 @@ export const appRouter = router({
         await deleteCertificateRequest(input.id);
         return { success: true };
       }),
+
+    updateCertificateGrades: adminProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          grades: z.any(),
+          finalGrade: z.string(),
+          average: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { updateCertificateGrades } = await import("./db");
+        await updateCertificateGrades(input.id, {
+          grades: input.grades,
+          finalGrade: input.finalGrade,
+          average: input.average,
+        });
+        return { success: true };
+      }),
   }),
 });
 

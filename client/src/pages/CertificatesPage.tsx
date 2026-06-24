@@ -20,7 +20,7 @@ export default function CertificatesPage() {
   return (
     <div className="flex min-h-screen bg-gray-50/50 flex-col lg:flex-row">
       <SidebarNavigation />
-      <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">إدارة طلبات الشهادات</h1>

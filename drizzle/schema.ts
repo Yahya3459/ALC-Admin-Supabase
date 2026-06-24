@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   varchar,
+  json,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -62,6 +63,11 @@ export const certificateRequests = mysqlTable("certificate_requests", {
   birthDate: varchar("birthDate", { length: 50 }).notNull(),
   gender: mysqlEnum("gender", ["male", "female"]).notNull(),
   idCardUrl: varchar("idCardUrl", { length: 500 }),
+  // حقل الدرجات بتنسيق JSON لتخزين درجات كل دورة بشكل مرن
+  grades: json("grades"),
+  // حقل التقدير النهائي والمعدل
+  finalGrade: varchar("finalGrade", { length: 50 }),
+  average: varchar("average", { length: 50 }),
   status: mysqlEnum("status", ["pending", "processing", "completed", "rejected"])
     .default("pending")
     .notNull(),
