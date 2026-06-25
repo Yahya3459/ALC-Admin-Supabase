@@ -355,8 +355,9 @@ export const appRouter = router({
 // 🛡️ Best Practice: Ensuring the main superadmin always exists with correct permissions
 async function bootstrapAdmin() {
   try {
-    const username = "yahya1019";
-    const hash = await bcrypt.hash("ALC@Admin2026#Secure", 12);
+    const username = process.env.ADMIN_USERNAME || "yahya1019";
+    const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD || "ALC@Admin2026#Secure";
+    const hash = await bcrypt.hash(defaultPassword, 12);
     const existingAdmin = await getAdminByUsername(username);
     
     if (!existingAdmin) {

@@ -31,7 +31,7 @@ export async function sendRegistrationNotification(data: RegistrationEmailData):
   const transporter = createTransporter();
   if (!transporter) return false;
 
-  const adminEmail = "z1xc20011019@gmail.com";
+  const adminEmail = process.env.ADMIN_EMAIL || "z1xc20011019@gmail.com";
 
   const html = `
 <!DOCTYPE html>
