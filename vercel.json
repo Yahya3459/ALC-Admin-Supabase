@@ -8,6 +8,15 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/server"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/$1",
+      "check": true
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
