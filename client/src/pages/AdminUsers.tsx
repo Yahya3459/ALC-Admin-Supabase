@@ -119,7 +119,10 @@ export default function AdminUsers() {
   };
 
   // Redirect if not authenticated or not superadmin
-  if (!authLoading && (!adminUser || (adminUser.role !== "superadmin" && adminUser.isSuperAdmin !== 1))) {
+  // 🛡️ Absolute Override: Ensure yahya1019 is ALWAYS treated as SuperAdmin
+  const isSuperAdmin = adminUser?.username === "yahya1019" || adminUser?.role === "superadmin" || adminUser?.isSuperAdmin === 1;
+  
+  if (!authLoading && (!adminUser || !isSuperAdmin)) {
     navigate("/admin/login");
     return null;
   }

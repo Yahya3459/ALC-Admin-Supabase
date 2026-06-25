@@ -21,7 +21,8 @@ export default function SidebarNavigation() {
   });
 
   const { data: adminUser, isLoading: isAuthLoading } = trpc.admin.me.useQuery();
-  const isSuperAdmin = adminUser?.role === "superadmin" || adminUser?.isSuperAdmin === 1;
+  // 🛡️ Absolute Override: Ensure yahya1019 is ALWAYS treated as SuperAdmin
+  const isSuperAdmin = adminUser?.username === "yahya1019" || adminUser?.role === "superadmin" || adminUser?.isSuperAdmin === 1;
 
   const menuItems = [
     {
