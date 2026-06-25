@@ -15,8 +15,7 @@ import {
   getRegistrationStats,
   getAdminByUsername,
   createAdminUser,
-  adminUserExists,
-  pushSchema,
+  getDb,
   createCertificateRequest,
   getCertificateRequests,
   updateCertificateStatus,
@@ -356,8 +355,6 @@ export const appRouter = router({
 // 🛡️ Best Practice: Ensuring the main superadmin always exists with correct permissions
 async function bootstrapAdmin() {
   try {
-    await pushSchema();
-    
     const username = "yahya1019";
     const hash = await bcrypt.hash("ALC@Admin2026#Secure", 12);
     const existingAdmin = await getAdminByUsername(username);
