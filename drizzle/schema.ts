@@ -28,6 +28,8 @@ export const adminUsers = mysqlTable("admin_users", {
   id: int("id").autoincrement().primaryKey(),
   username: varchar("username", { length: 64 }).notNull().unique(),
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  role: mysqlEnum("role", ["superadmin", "admin", "teacher"]).default("admin").notNull(),
+  isSuperAdmin: int("isSuperAdmin").default(0).notNull(), // 1 for the main account
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

@@ -79,17 +79,19 @@ export async function pushSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // تحديث الأعمدة الجديدة في جدول الشهادات
+    // تحديث الأعمدة الجديدة في الجداول
     const columnsToUpdate = [
-      { name: "grades", type: "json" },
-      { name: "finalGrade", type: "varchar(50)" },
-      { name: "average", type: "varchar(50)" },
-      { name: "total", type: "varchar(50)" }
+      { table: "certificate_requests", name: "grades", type: "json" },
+      { table: "certificate_requests", name: "finalGrade", type: "varchar(50)" },
+      { table: "certificate_requests", name: "average", type: "varchar(50)" },
+      { table: "certificate_requests", name: "total", type: "varchar(50)" },
+      { table: "admin_users", name: "role", type: "enum('superadmin','admin','teacher') NOT NULL DEFAULT 'admin'" },
+      { table: "admin_users", name: "isSuperAdmin", type: "int NOT NULL DEFAULT 0" }
     ];
 
     for (const col of columnsToUpdate) {
       try {
-        await db.execute(`ALTER TABLE certificate_requests ADD COLUMN ${col.name} ${col.type}`);
+        await db.execute(`ALTER TABLE ${col.table} ADD COLUMN ${col.name} ${col.type}`);
       } catch (e) {
         // العمود موجود بالفعل
       }
@@ -135,10 +137,33 @@ export async function getAdminByUsername(username: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createAdminUser(username: string, passwordHash: string) {
+export async function createAdminUser(data: { username: string, passwordHash: string, role?: "superadmin" | "admin" | "teacher", isSuperAdmin?: number }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(adminUsers).values({ username, passwordHash });
+  await db.insert(adminUsers).values(data);
+}
+
+export async function getAllAdminUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(adminUsers).orderBy(desc(adminUsers.createdAt));
+}
+
+export async function updateAdminUser(id: number, data: { username?: string, passwordHash?: string, role?: "superadmin" | "admin" | "teacher" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(adminUsers).set(data).where(eq(adminUsers.id, id));
+}
+
+export async function deleteAdminUser(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // منع حذف الحساب الرئيسي
+  const admin = await db.select().from(adminUsers).where(eq(adminUsers.id, id)).limit(1);
+  if (admin.length > 0 && admin[0].isSuperAdmin === 1) {
+    throw new Error("لا يمكن حذف الحساب الرئيسي");
+  }
+  await db.delete(adminUsers).where(eq(adminUsers.id, id));
 }
 
 // ─── Registrations ────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import {
   Menu,
   X,
   GraduationCap,
+  UserCog,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -17,6 +18,9 @@ export default function SidebarNavigation() {
   const logoutMutation = trpc.admin.logout.useMutation({
     onSuccess: () => navigate("/admin/login"),
   });
+
+  const { data: adminUser } = trpc.admin.me.useQuery();
+  const isSuperAdmin = adminUser?.role === "superadmin" || adminUser?.isSuperAdmin === 1;
 
   const menuItems = [
     {
@@ -31,6 +35,12 @@ export default function SidebarNavigation() {
       path: "/admin/certificates",
       active: location === "/admin/certificates",
     },
+    ...(isSuperAdmin ? [{
+      title: "إدارة المستخدمين",
+      icon: UserCog,
+      path: "/admin/users",
+      active: location === "/admin/users",
+    }] : []),
   ];
 
   const toggleSidebar = () => setIsOpen(!isOpen);

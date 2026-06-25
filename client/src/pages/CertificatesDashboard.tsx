@@ -304,6 +304,7 @@ export default function CertificatesDashboard() {
 
   const utils = trpc.useUtils();
   const { data: certs, isLoading, refetch } = trpc.admin.getCertificateRequests.useQuery();
+  const { data: adminUser } = trpc.admin.me.useQuery();
   
   const updateStatus = trpc.admin.updateCertificateStatus.useMutation({
     onSuccess: () => {
@@ -485,7 +486,26 @@ export default function CertificatesDashboard() {
                       <TableCell className="font-semibold">{cert.fullNameAr}</TableCell>
                       <TableCell>{cert.courseName}</TableCell>
                       <TableCell>{cert.gender === "male" ? "ذكر" : "أنثى"}</TableCell>
-                      <TableCell><CertStatusBadge status={cert.status as CertStatusKey} /></TableCell>
+                      <TableCell>
+                        {adminUser?.role === "teacher" ? (
+                          <CertStatusBadge status={cert.status as CertStatusKey} />
+                        ) : (
+                          <Select
+                            value={cert.status}
+                            onValueChange={(v) => updateStatus.mutate({ id: cert.id, status: v as CertStatusKey })}
+                          >
+                            <SelectTrigger className="h-8 w-36 border-0 p-0 focus:ring-0 bg-transparent">
+                              <CertStatusBadge status={cert.status as CertStatusKey} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">قيد الانتظار</SelectItem>
+                              <SelectItem value="processing">قيد المعالجة</SelectItem>
+                              <SelectItem value="completed">مكتمل</SelectItem>
+                              <SelectItem value="rejected">مرفوض</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {cert.average ? (
                           <div className="flex flex-col">
@@ -507,7 +527,11 @@ export default function CertificatesDashboard() {
                             <DropdownMenuItem onClick={() => exportFunctions.exportToTxt(cert, COURSE_CONFIGS)}>تنزيل كـ Text</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(cert.id)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
+                        {adminUser?.role !== "teacher" && (
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteId(cert.id)}>
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

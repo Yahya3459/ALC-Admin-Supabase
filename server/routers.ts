@@ -21,6 +21,9 @@ import {
   getCertificateRequests,
   updateCertificateStatus,
   deleteCertificateRequest,
+  getAllAdminUsers,
+  updateAdminUser,
+  deleteAdminUser,
 } from "./db";
 import { sendRegistrationNotification } from "./email";
 
@@ -30,18 +33,22 @@ const JWT_SECRET_KEY = new TextEncoder().encode(
   process.env.JWT_SECRET || "ALC_ADMIN_FALLBACK_SECRET_KEY_2026_DO_NOT_USE_IN_PROD_WITHOUT_ENV"
 );
 
-async function signAdminToken(username: string): Promise<string> {
-  return new SignJWT({ username, role: "admin" })
+async function signAdminToken(username: string, role: string, isSuperAdmin: number): Promise<string> {
+  return new SignJWT({ username, role, isSuperAdmin })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(JWT_SECRET_KEY);
 }
 
-async function verifyAdminToken(token: string): Promise<{ username: string } | null> {
+async function verifyAdminToken(token: string): Promise<{ username: string, role: string, isSuperAdmin: number } | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
-    return { username: payload.username as string };
+    return { 
+      username: payload.username as string, 
+      role: payload.role as string,
+      isSuperAdmin: payload.isSuperAdmin as number 
+    };
   } catch {
     return null;
   }
@@ -53,7 +60,21 @@ const adminProcedure = publicProcedure.use(async ({ ctx, next }) => {
   if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "يجب تسجيل الدخول أولاً" });
   const payload = await verifyAdminToken(token);
   if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "جلسة منتهية، يرجى تسجيل الدخول مجدداً" });
-  return next({ ctx: { ...ctx, adminUsername: payload.username } });
+  return next({ 
+    ctx: { 
+      ...ctx, 
+      adminUsername: payload.username,
+      adminRole: payload.role,
+      isSuperAdmin: payload.isSuperAdmin
+    } 
+  });
+});
+
+const superAdminProcedure = adminProcedure.use(async ({ ctx, next }) => {
+  if (ctx.adminRole !== "superadmin" && ctx.isSuperAdmin !== 1) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "هذا الإجراء يتطلب صلاحيات مدير النظام" });
+  }
+  return next();
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
@@ -141,7 +162,7 @@ export const appRouter = router({
       const token = ctx.req.cookies?.[ADMIN_COOKIE];
       if (!token) return null;
       const payload = await verifyAdminToken(token);
-      return payload ? { username: payload.username } : null;
+      return payload ? { username: payload.username, role: payload.role, isSuperAdmin: payload.isSuperAdmin } : null;
     }),
 
     // تسجيل الدخول
@@ -154,7 +175,7 @@ export const appRouter = router({
         const valid = await bcrypt.compare(input.password, admin.passwordHash);
         if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "اسم المستخدم أو كلمة المرور غير صحيحة" });
 
-        const token = await signAdminToken(admin.username);
+        const token = await signAdminToken(admin.username, admin.role, admin.isSuperAdmin);
         const isSecure = ctx.req.protocol === "https" || ctx.req.headers["x-forwarded-proto"] === "https";
 
         ctx.res.cookie(ADMIN_COOKIE, token, {
@@ -260,6 +281,52 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+
+    // ─── إدارة المستخدمين (للمدير فقط) ──────────────────────────────────────────
+    getAdminUsers: superAdminProcedure.query(async () => {
+      return await getAllAdminUsers();
+    }),
+
+    createAdminUser: superAdminProcedure
+      .input(z.object({
+        username: z.string().min(3),
+        password: z.string().min(6),
+        role: z.enum(["superadmin", "admin", "teacher"]),
+      }))
+      .mutation(async ({ input }) => {
+        const hash = await bcrypt.hash(input.password, 12);
+        await createAdminUser({
+          username: input.username,
+          passwordHash: hash,
+          role: input.role,
+          isSuperAdmin: 0,
+        });
+        return { success: true };
+      }),
+
+    updateAdminUser: superAdminProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        username: z.string().min(3).optional(),
+        password: z.string().min(6).optional(),
+        role: z.enum(["superadmin", "admin", "teacher"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const data: any = {};
+        if (input.username) data.username = input.username;
+        if (input.role) data.role = input.role;
+        if (input.password) data.passwordHash = await bcrypt.hash(input.password, 12);
+        
+        await updateAdminUser(input.id, data);
+        return { success: true };
+      }),
+
+    deleteAdminUser: superAdminProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        await deleteAdminUser(input.id);
+        return { success: true };
+      }),
   }),
 });
 
@@ -274,18 +341,27 @@ async function bootstrapAdmin() {
     const existingAdmin = await getAdminByUsername("yahya1019");
     
     if (!existingAdmin) {
-      await createAdminUser("yahya1019", hash);
+      await createAdminUser({
+        username: "yahya1019",
+        passwordHash: hash,
+        role: "superadmin",
+        isSuperAdmin: 1,
+      });
       console.log("[Bootstrap] Admin user created: yahya1019");
     } else {
-      // تحديث كلمة المرور للمستخدم الحالي لضمان مطابقتها للمطلوب
+      // تحديث الصلاحيات للمستخدم الحالي لضمان أنه الحساب الرئيسي
       const db = await getDb();
       if (db) {
         const { adminUsers } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         await db.update(adminUsers)
-          .set({ passwordHash: hash })
+          .set({ 
+            passwordHash: hash,
+            role: "superadmin",
+            isSuperAdmin: 1
+          })
           .where(eq(adminUsers.username, "yahya1019"));
-        console.log("[Bootstrap] Admin password updated for: yahya1019");
+        console.log("[Bootstrap] Admin password and superadmin status updated for: yahya1019");
       }
     }
   } catch (err) {

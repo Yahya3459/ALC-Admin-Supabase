@@ -286,22 +286,26 @@ export default function AdminDashboard() {
                               {reg.email || "—"}
                             </TableCell>
                             <TableCell>
-                              <Select
-                                value={reg.status}
-                                onValueChange={(v) =>
-                                  updateStatus.mutate({ id: reg.id, status: v as StatusKey })
-                                }
-                              >
-                                <SelectTrigger className="h-8 w-36 border-0 p-0 focus:ring-0 bg-transparent">
-                                  <StatusBadge status={reg.status as StatusKey} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">قيد الانتظار</SelectItem>
-                                  <SelectItem value="contacted">تم التواصل</SelectItem>
-                                  <SelectItem value="enrolled">مسجّل</SelectItem>
-                                  <SelectItem value="rejected">مرفوض</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              {adminUser?.role === "teacher" ? (
+                                <StatusBadge status={reg.status as StatusKey} />
+                              ) : (
+                                <Select
+                                  value={reg.status}
+                                  onValueChange={(v) =>
+                                    updateStatus.mutate({ id: reg.id, status: v as StatusKey })
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-36 border-0 p-0 focus:ring-0 bg-transparent">
+                                    <StatusBadge status={reg.status as StatusKey} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">قيد الانتظار</SelectItem>
+                                    <SelectItem value="contacted">تم التواصل</SelectItem>
+                                    <SelectItem value="enrolled">مسجّل</SelectItem>
+                                    <SelectItem value="rejected">مرفوض</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell text-xs text-muted-foreground whitespace-nowrap">
                               {new Date(reg.createdAt).toLocaleDateString("ar-SA", {
@@ -309,14 +313,16 @@ export default function AdminDashboard() {
                               })}
                             </TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-8 h-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                onClick={() => setDeleteId(reg.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              {adminUser?.role !== "teacher" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                  onClick={() => setDeleteId(reg.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
