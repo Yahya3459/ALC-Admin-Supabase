@@ -51,9 +51,11 @@ async function createServerApp() {
 }
 
 // Export for Vercel
-const appPromise = createServerApp();
+let app: any;
 export default async (req: any, res: any) => {
-  const app = await appPromise;
+  if (!app) {
+    app = await createServerApp();
+  }
   return app(req, res);
 };
 

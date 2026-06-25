@@ -1,0 +1,6 @@
+Rebuild triggered at: 2026-06-25T03:30:00Z
+Root cause fix:
+1. Standardized vercel.json for Vite + Node.js
+2. Regenerated pnpm-lock.yaml
+3. Fixed server entry point for Vercel Serverless Functions
+4. Added vercel-build script
