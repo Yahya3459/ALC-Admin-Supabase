@@ -5,12 +5,12 @@ import cors from "cors";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
-import { registerUploadRoutes } from "../upload";
-import { appRouter } from "../routers";
-import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
+import { registerOAuthRoutes } from "../server/_core/oauth";
+import { registerStorageProxy } from "../server/_core/storageProxy";
+import { registerUploadRoutes } from "../server/upload";
+import { appRouter } from "../server/routers";
+import { createContext } from "../server/_core/context";
+import { serveStatic, setupVite } from "../server/_core/vite";
 
 async function createServerApp() {
   const app = express();
