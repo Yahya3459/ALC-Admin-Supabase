@@ -2,7 +2,6 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -48,8 +47,9 @@ import {
   Filter,
   X,
   ChevronDown,
+  FileSpreadsheet,
 } from "lucide-react";
-import { Document, Packer, Paragraph, Table as DocTable, TableCell as DocTableCell, TableRow as DocTableRow, WidthType, BorderStyle, AlignmentType } from "docx";
+import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -205,6 +205,72 @@ function GradesModal({ cert, onClose, onSave }: { cert: any, onClose: () => void
 
 // ─── Export Functions ────────────────────────────────────────────────────────
 const exportFunctions = {
+  exportToExcel: (cert: any, courseConfigs: typeof COURSE_CONFIGS) => {
+    const config = courseConfigs[cert.courseName];
+    const data: any = {
+      "الاسم بالعربي": cert.fullNameAr,
+      "الاسم بالإنجليزي": cert.fullNameEn,
+      "الدورة": cert.courseName,
+      "الجنس": cert.gender === "male" ? "ذكر" : "أنثى",
+      "المجموع": cert.total || "",
+      "المعدل": cert.average || "",
+      "التقدير العام": cert.finalGrade || "",
+    };
+
+    if (config) {
+      config.subjects.forEach(sub => {
+        const val = cert.grades?.[sub];
+        const result = typeof val === 'object' ? (val.result || "") : (val || "");
+        const grade = typeof val === 'object' ? (val.grade || "") : "";
+        data[sub] = `${result}${grade ? ` (${grade})` : ""}`;
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet([data]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Certificate");
+    XLSX.writeFile(workbook, `${cert.fullNameEn}_${cert.courseName}.xlsx`);
+  },
+
+  exportMultipleToExcel: (certs: any[], courseConfigs: typeof COURSE_CONFIGS) => {
+    const allSubjects = new Set<string>();
+    certs.forEach(cert => {
+      const config = courseConfigs[cert.courseName];
+      if (config) { config.subjects.forEach(sub => allSubjects.add(sub)); }
+    });
+    const subjectsArray = Array.from(allSubjects);
+
+    const exportData = certs.map(cert => {
+      const config = courseConfigs[cert.courseName];
+      const row: any = {
+        "الاسم بالعربي": cert.fullNameAr,
+        "الاسم بالإنجليزي": cert.fullNameEn,
+        "الدورة": cert.courseName,
+        "الجنس": cert.gender === "male" ? "ذكر" : "أنثى",
+        "المجموع": cert.total || "",
+        "المعدل": cert.average || "",
+        "التقدير العام": cert.finalGrade || "",
+      };
+
+      subjectsArray.forEach(sub => {
+        if (config?.subjects.includes(sub)) {
+          const val = cert.grades?.[sub];
+          const result = typeof val === 'object' ? (val.result || "") : (val || "");
+          const grade = typeof val === 'object' ? (val.grade || "") : "";
+          row[sub] = `${result}${grade ? ` (${grade})` : ""}`;
+        } else {
+          row[sub] = "";
+        }
+      });
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Certificates");
+    XLSX.writeFile(workbook, `Certificates_${new Date().toISOString().split('T')[0]}.xlsx`);
+  },
+
   exportToTxt: (cert: any, courseConfigs: typeof COURSE_CONFIGS) => {
     const config = courseConfigs[cert.courseName];
     const lines: string[] = [];
@@ -222,147 +288,6 @@ const exportFunctions = {
     const content = lines.join("\n");
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     saveAs(blob, `${cert.fullNameEn}_${cert.courseName}.txt`);
-  },
-
-  exportToWord: async (cert: any, courseConfigs: typeof COURSE_CONFIGS) => {
-    const config = courseConfigs[cert.courseName];
-    const tableRows: DocTableRow[] = [];
-    const headerCells = [
-      new DocTableCell({ children: [new Paragraph("Name")] }),
-      new DocTableCell({ children: [new Paragraph("Course")] }),
-      new DocTableCell({ children: [new Paragraph("Total")] }),
-      new DocTableCell({ children: [new Paragraph("Average")] }),
-      new DocTableCell({ children: [new Paragraph("Grade")] }),
-    ];
-    if (config) { config.subjects.forEach(sub => { headerCells.push(new DocTableCell({ children: [new Paragraph(sub)] })); }); }
-    tableRows.push(new DocTableRow({ children: headerCells }));
-    const dataCells = [
-      new DocTableCell({ children: [new Paragraph(cert.fullNameEn)] }),
-      new DocTableCell({ children: [new Paragraph(cert.courseName)] }),
-      new DocTableCell({ children: [new Paragraph(cert.total || "")] }),
-      new DocTableCell({ children: [new Paragraph(cert.average || "")] }),
-      new DocTableCell({ children: [new Paragraph(cert.finalGrade || "")] }),
-    ];
-    if (config) {
-      config.subjects.forEach(sub => {
-        const val = cert.grades?.[sub];
-        const result = typeof val === 'object' ? (val.result || "") : (val || "");
-        const grade = typeof val === 'object' ? (val.grade || "") : "";
-        const displayVal = `${result}${grade ? ` (${grade})` : ""}`;
-        dataCells.push(new DocTableCell({ children: [new Paragraph(displayVal)] }));
-      });
-    }
-    tableRows.push(new DocTableRow({ children: dataCells }));
-    const doc = new Document({
-      sections: [{
-        children: [
-          new Paragraph({ text: `Certificate Report - ${cert.fullNameEn}`, bold: true, size: 28, alignment: AlignmentType.CENTER }),
-          new Paragraph(""),
-          new DocTable({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: tableRows,
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-            },
-          }),
-        ],
-      }],
-    });
-    const blob = await Packer.toBlob(doc);
-    saveAs(blob, `${cert.fullNameEn}_${cert.courseName}.docx`);
-  },
-
-  exportMultipleToTxt: (certs: any[], courseConfigs: typeof COURSE_CONFIGS) => {
-    const lines: string[] = [];
-    const allSubjects = new Set<string>();
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      if (config) { config.subjects.forEach(sub => allSubjects.add(sub)); }
-    });
-    const subjectsArray = Array.from(allSubjects);
-    lines.push(`Name,Course,Total,Average,Grade,${subjectsArray.join(",")}`);
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      const gradeValues: string[] = [];
-      subjectsArray.forEach(sub => {
-        if (config?.subjects.includes(sub)) {
-          const val = cert.grades?.[sub];
-          const result = typeof val === 'object' ? (val.result || "") : (val || "");
-          const grade = typeof val === 'object' ? (val.grade || "") : "";
-          gradeValues.push(`${result}${grade ? ` (${grade})` : ""}`);
-        } else { gradeValues.push(""); }
-      });
-      lines.push(`${cert.fullNameEn},${cert.courseName},${cert.total || ""},${cert.average || ""},${cert.finalGrade || ""},${gradeValues.join(",")}`);
-    });
-    const content = lines.join("\n");
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    saveAs(blob, `Certificates_${new Date().toISOString().split('T')[0]}.txt`);
-  },
-
-  exportMultipleToWord: async (certs: any[], courseConfigs: typeof COURSE_CONFIGS) => {
-    const allSubjects = new Set<string>();
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      if (config) { config.subjects.forEach(sub => allSubjects.add(sub)); }
-    });
-    const subjectsArray = Array.from(allSubjects);
-    const tableRows: DocTableRow[] = [];
-    const headerCells = [
-      new DocTableCell({ children: [new Paragraph("Name")] }),
-      new DocTableCell({ children: [new Paragraph("Course")] }),
-      new DocTableCell({ children: [new Paragraph("Total")] }),
-      new DocTableCell({ children: [new Paragraph("Average")] }),
-      new DocTableCell({ children: [new Paragraph("Grade")] }),
-    ];
-    subjectsArray.forEach(sub => { headerCells.push(new DocTableCell({ children: [new Paragraph(sub)] })); });
-    tableRows.push(new DocTableRow({ children: headerCells }));
-    certs.forEach(cert => {
-      const config = courseConfigs[cert.courseName];
-      const dataCells = [
-        new DocTableCell({ children: [new Paragraph(cert.fullNameEn)] }),
-        new DocTableCell({ children: [new Paragraph(cert.courseName)] }),
-        new DocTableCell({ children: [new Paragraph(cert.total || "")] }),
-        new DocTableCell({ children: [new Paragraph(cert.average || "")] }),
-        new DocTableCell({ children: [new Paragraph(cert.finalGrade || "")] }),
-      ];
-      subjectsArray.forEach(sub => {
-        if (config?.subjects.includes(sub)) {
-          const val = cert.grades?.[sub];
-          const result = typeof val === 'object' ? (val.result || "") : (val || "");
-          const grade = typeof val === 'object' ? (val.grade || "") : "";
-          const displayVal = `${result}${grade ? ` (${grade})` : ""}`;
-          dataCells.push(new DocTableCell({ children: [new Paragraph(displayVal)] }));
-        } else { dataCells.push(new DocTableCell({ children: [new Paragraph("")] })); }
-      });
-      tableRows.push(new DocTableRow({ children: dataCells }));
-    });
-    const doc = new Document({
-      sections: [{
-        children: [
-          new Paragraph({ text: "Certificates Summary Report", bold: true, size: 28, alignment: AlignmentType.CENTER }),
-          new Paragraph(""),
-          new DocTable({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: tableRows,
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-              insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-            },
-          }),
-        ],
-      }],
-    });
-    const blob = await Packer.toBlob(doc);
-    saveAs(blob, `Certificates_${new Date().toISOString().split('T')[0]}.docx`);
   }
 };
 
@@ -438,17 +363,29 @@ export default function CertificatesDashboard() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
-                <Download className="w-4 h-4" />
+                <FileSpreadsheet className="w-4 h-4 text-green-600" />
                 تصدير البيانات
                 <ChevronDown className="w-4 h-4 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => exportFunctions.exportMultipleToTxt(filteredCerts, COURSE_CONFIGS)}>
-                تصدير الكل كـ Text
+              <DropdownMenuItem onClick={() => exportFunctions.exportMultipleToExcel(filteredCerts, COURSE_CONFIGS)}>
+                تصدير الكل كـ Excel
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportFunctions.exportMultipleToWord(filteredCerts, COURSE_CONFIGS)}>
-                تصدير الكل كـ Word
+              <DropdownMenuItem onClick={() => {
+                const lines = filteredCerts.map(cert => {
+                  const config = COURSE_CONFIGS[cert.courseName];
+                  const gradeValues = config?.subjects.map(sub => {
+                    const val = cert.grades?.[sub];
+                    return typeof val === 'object' ? (val.result || "") : (val || "");
+                  }).join(",") || "";
+                  return `${cert.fullNameEn},${cert.courseName},${cert.total || ""},${cert.average},${cert.finalGrade},${gradeValues}`;
+                });
+                const content = ["Name,Course,Total,Average,Grade,Subjects...", ...lines].join("\n");
+                const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+                saveAs(blob, `Certificates_Summary.txt`);
+              }}>
+                تصدير الكل كـ Text
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -566,8 +503,8 @@ export default function CertificatesDashboard() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => exportFunctions.exportToExcel(cert, COURSE_CONFIGS)}>تنزيل كـ Excel</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => exportFunctions.exportToTxt(cert, COURSE_CONFIGS)}>تنزيل كـ Text</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => exportFunctions.exportToWord(cert, COURSE_CONFIGS)}>تنزيل كـ Word</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <Button variant="ghost" size="icon" onClick={() => setDeleteId(cert.id)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
